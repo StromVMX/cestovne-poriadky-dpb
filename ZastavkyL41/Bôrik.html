@@ -182,7 +182,7 @@ const travelTimes = [0, 1, 0, 1, 1, 1];
 const departures = {
   "17": { schoolDays: [], holidays: [], freeDays: [] },
   "18": { schoolDays: [13,33,53], holidays: [13,33,53], freeDays: [13,33,53] },
-  "19": { schoolDays: [13,33,53S], holidays: [13,33,53S], freeDays: [13,33,53S] },
+  "19": { schoolDays: [13,33,"53S"], holidays: [13,33,"53S"], freeDays: [13,33,"53S"] },
   "20": { schoolDays: [], holidays: [], freeDays: [] }
 };
 
@@ -203,7 +203,24 @@ function fillScheduleTable(selectedStop) {
   for (let hour in departures) {
     ["schoolDays", "holidays", "freeDays"].forEach(type => {
       departures[hour][type].forEach(min => {
-        const totalMinutes = parseInt(hour) * 60 + min + offset;
+        // Rozlíšime, či min je string s označením
+        let baseMinute;
+        let suffix = "";
+
+        if (typeof min === "string") {
+          // oddelíme číslo a písmeno
+          const match = min.match(/^(\d+)(\D*)$/);
+          if (match) {
+            baseMinute = parseInt(match[1], 10);
+            suffix = match[2]; // napr. "S" alebo prázdny string
+          } else {
+            baseMinute = parseInt(min, 10);
+          }
+        } else {
+          baseMinute = min;
+        }
+
+        const totalMinutes = parseInt(hour) * 60 + baseMinute + offset;
         const h = Math.floor(totalMinutes / 60);
         const m = totalMinutes % 60;
 
@@ -216,7 +233,8 @@ function fillScheduleTable(selectedStop) {
           };
         }
 
-        adjustedDepartures[hStr][type].push(m);
+        // Pridáme minútu s prípadným označením
+        adjustedDepartures[hStr][type].push({ minute: m, suffix: suffix });
       });
     });
   }
@@ -234,9 +252,11 @@ function fillScheduleTable(selectedStop) {
 
     ["schoolDays", "holidays", "freeDays"].forEach(type => {
       const td = document.createElement("td");
+
       const minutes = adjustedDepartures[hour][type]
-        .sort((a, b) => a - b)
-        .map(m => m.toString().padStart(2, "0"));
+        .sort((a, b) => a.minute - b.minute)
+        .map(({ minute, suffix }) => minute.toString().padStart(2, "0") + suffix);
+
       td.textContent = minutes.join(" ");
       row.appendChild(td);
     });
@@ -244,6 +264,7 @@ function fillScheduleTable(selectedStop) {
     tbody.appendChild(row);
   }
 }
+
 
 
 
