@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bôrik - Jízdní řád s vyhľadávaním</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #f8f1e8;
+      margin: 0;
+      padding: 40px;
+      color: #222;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: auto;
+      background-color: #fff;
+      padding: 30px;
+      border-radius: 15px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+      display: flex;
+      gap: 40px;
+    }
+
+    .stops {
+      width: 30%;
+    }
+
+    .stops h2 {
+      font-size: 20px;
+      margin-bottom: 10px;
+      color: #5a422c;
+    }
+
+    #search {
+      width: 100%;
+      padding: 8px 10px;
+      font-size: 14px;
+      margin-bottom: 15px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+
+    .stop-list {
+      list-style: none;
+      padding-left: 0;
+      border-left: 3px solid #ccc;
+      padding-left: 15px;
+      margin: 0;
+    }
+
+    .stop-list li {
+      padding: 6px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: background 0.2s;
+    }
+
+    .stop-list li:hover {
+      background-color: rgba(0, 0, 0, 0.05);
+    }
+
+    .stop-list li.active {
+      background-color: #f1e4d2;
+      font-weight: bold;
+      color: #5a422c;
+    }
+
+    .stop-time {
+      font-size: 13px;
+      color: #888;
+      margin-left: 10px;
+    }
+
+    .schedule {
+      width: 70%;
+    }
+
+    h1 {
+      font-size: 28px;
+      margin-bottom: 20px;
+      color: #5a422c;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    th, td {
+      padding: 8px 12px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+    }
+
+    th {
+      background-color: #f1e4d2;
+      color: #5a422c;
+    }
+
+    tr:nth-child(even) {
+      background-color: #f9f5f1;
+    }
+
+    .hour {
+      font-weight: bold;
+    }
+
+    .note {
+      margin-top: 20px;
+      font-size: 14px;
+      color: #555;
+      background: #f5efe7;
+      padding: 10px 14px;
+      border-left: 4px solid #c4a484;
+      border-radius: 6px;
+    }
+
+    a.back {
+      display: inline-block;
+      margin-top: 30px;
+      text-decoration: none;
+      color: #5a422c;
+      background: #e6d6c3;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-weight: bold;
+      transition: background 0.2s;
+    }
+
+    a.back:hover {
+      background: #d6c3ab;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="stops">
+    <h2>Trasa linky</h2>
+    <input id="search" placeholder="Vyhľadať zastávku..." />
+    <ul class="stop-list" id="stopList"></ul>
+  </div>
+
+  <div class="schedule">
+    <h1 id="scheduleTitle">Odchody - Bôrik</h1>
+    <table>
+      <thead>
+        <tr>
+          <th>Hodina</th>
+          <th>Pracovné dni<br><small>školský rok</small></th>
+          <th>Pracovné dni<br><small>prázdniny</small></th>
+          <th>Voľné dni</th>
+        </tr>
+      </thead>
+      <tbody id="scheduleBody"></tbody>
+    </table>
+    <div class="note"><strong>S</strong> Zo zastávky <strong>Severná</strong> pokračuje cez Kalvária na konečnú Depo Slnečná.</div>
+    <a href="/index.html" class="back">← Späť na zoznam zastávok</a>
+  </div>
+</div>
+
+<script>
+const stopsData = [
+  { name: "Bôrik" },
+  { name: "Školská" },
+  { name: "Rybárska" },
+  { name: "Alejová" },
+  { name: "Severná" },
+  { name: "Armádne námestie" },
+  { name: "Zimný Štadión" }
+];
+
+const travelTimes = [0, 1, 0, 1, 1, 1];
+
+const departures = {
+  "17": { schoolDays: [], holidays: [], freeDays: [] },
+  "18": { schoolDays: [13,33,53], holidays: [13,33,53], freeDays: [13,33,53] },
+  "19": { schoolDays: [13,33,53], holidays: [13,33,53], freeDays: [13,33,53] },
+  "20": { schoolDays: [], holidays: [], freeDays: [] }
+};
+
+function fillScheduleTable(selectedStop) {
+  const tbody = document.getElementById("scheduleBody");
+  tbody.innerHTML = "";
+  const stopIndex = stopsData.findIndex(s => s.name === selectedStop);
+  if (stopIndex === -1) return;
+
+  let offset = 0;
+  for (let i = 0; i < stopIndex; i++) {
+    offset += travelTimes[i];
+  }
+
+  const adjustedDepartures = {};
+
+  // Pre každú hodinu v pôvodných dátach
+  for (let hour in departures) {
+    ["schoolDays", "holidays", "freeDays"].forEach(type => {
+      departures[hour][type].forEach(min => {
+        const totalMinutes = parseInt(hour) * 60 + min + offset;
+        const h = Math.floor(totalMinutes / 60);
+        const m = totalMinutes % 60;
+
+        const hStr = h.toString();
+        if (!adjustedDepartures[hStr]) {
+          adjustedDepartures[hStr] = {
+            schoolDays: [],
+            holidays: [],
+            freeDays: []
+          };
+        }
+
+        adjustedDepartures[hStr][type].push(m);
+      });
+    });
+  }
+
+  // Zoradíme hodiny číselne
+  const sortedHours = Object.keys(adjustedDepartures).sort((a, b) => a - b);
+
+  // Vygenerujeme tabuľku
+  for (let hour of sortedHours) {
+    const row = document.createElement("tr");
+    const th = document.createElement("td");
+    th.classList.add("hour");
+    th.textContent = hour;
+    row.appendChild(th);
+
+    ["schoolDays", "holidays", "freeDays"].forEach(type => {
+      const td = document.createElement("td");
+      const minutes = adjustedDepartures[hour][type]
+        .sort((a, b) => a - b)
+        .map(m => m.toString().padStart(2, "0"));
+      td.textContent = minutes.join(" ");
+      row.appendChild(td);
+    });
+
+    tbody.appendChild(row);
+  }
+}
+
+
+
+function fillStopListWithTimes() {
+  const ul = document.getElementById("stopList");
+  ul.innerHTML = "";
+
+  let cumulatedTime = 0;
+
+  stopsData.forEach((stop, i) => {
+    const li = document.createElement("li");
+    li.innerHTML = `${stop.name} <span class="stop-time">${cumulatedTime} min</span>`;
+
+    li.addEventListener("click", () => {
+      document.getElementById("scheduleTitle").textContent = `Odchody - ${stop.name}`;
+      fillScheduleTable(stop.name);
+
+      ul.querySelectorAll("li").forEach(el => el.classList.remove("active"));
+      li.classList.add("active");
+    });
+
+    ul.appendChild(li);
+    if (i < travelTimes.length) {
+      cumulatedTime += travelTimes[i];
+    }
+  });
+
+  // Označ prvú aktívnu zastávku
+  const firstLi = ul.querySelector("li");
+  if (firstLi) {
+    firstLi.classList.add("active");
+    fillScheduleTable(stopsData[0].name);
+  }
+}
+
+function setupSearch() {
+  const searchInput = document.getElementById("search");
+  const ul = document.getElementById("stopList");
+
+  searchInput.addEventListener("input", () => {
+    const query = searchInput.value.toLowerCase().trim();
+    const lis = ul.querySelectorAll("li");
+
+    lis.forEach(li => {
+      const stopName = li.textContent.toLowerCase();
+      li.style.display = stopName.includes(query) ? "" : "none";
+    });
+  });
+}
+
+window.onload = () => {
+  fillStopListWithTimes();
+  setupSearch();
+};
+</script>
+
+</body>
+</html>
